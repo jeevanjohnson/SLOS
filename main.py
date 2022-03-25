@@ -18,32 +18,29 @@ import ava
 import maps
 import config
 
+from ext import glob
+
 app = FastAPI()
 
 @app.on_event('startup')
 async def start_up() -> None:
-    config.bancho_password = hashlib.md5(
+    glob.http = aiohttp.ClientSession()
+
+    glob.username = config.bancho_username
+    glob.password = hashlib.md5(
         config.bancho_password.encode()
     ).hexdigest()
 
     temp_path = Path(config.avatar)
-    if (
-        temp_path.exists() and 
-        temp_path.is_file()
-    ):
+    if temp_path.exists() and temp_path.is_file():
         config.avatar = temp_path
         return
-
-    async with aiohttp.ClientSession() as session:
-        async with session.get(config.avatar) as resp:
-            if (
-                not resp or
-                resp.status != 200
-            ):
+    else:
+        async with glob.http.get(config.avatar) as resp:
+            if not resp or resp.status != 200:
                 config.avatar = b''
-            
-            content = await resp.content.read()
-            if not content:
+        
+            if not (content := await resp.content.read()):
                 config.avatar = b''
             
             config.avatar = content

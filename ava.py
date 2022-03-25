@@ -5,7 +5,7 @@ from pathlib import Path
 from fastapi import APIRouter
 from fastapi.responses import Response
 
-import config
+from ext import glob
 
 router = APIRouter()
 
@@ -13,7 +13,7 @@ router = APIRouter()
 async def avatar(
     user_id: int
 ) -> Response:
-    if isinstance(config.avatar, Path):
-        return Response(config.avatar.read_bytes())
+    if isinstance(glob.avatar, Path):
+        return Response(glob.avatar.read_bytes())
     
-    return Response(config.avatar)
+    return Response(glob.avatar)

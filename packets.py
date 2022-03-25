@@ -1,7 +1,10 @@
+from __future__ import annotations
+
 import enum
 import struct
 import functools
-from typing import TYPE_CHECKING
+from typing import Any
+from typing import Callable
 
 @enum.unique
 class ClientPackets(enum.IntEnum):
@@ -158,66 +161,58 @@ def write_short(s: int) -> bytes:
 def write_long_long(l: int) -> bytes:
     return struct.pack('<q', l)
 
-def write_list32(l: tuple[int]) -> bytes:
-    ret = bytearray(write_short(len(l)))
+def write_list32(_list: tuple[int]) -> bytes:
+    ret = bytearray(
+        write_short(len(_list))
+    )
 
-    for item in l:
+    for item in _list:
         ret += write_int(item)
 
     return bytes(ret)
 
-def write(packetid: int, *args) -> bytes:
-    p = bytearray(struct.pack('<Hx', packetid))
+def write(
+    packet_id: int, *args: tuple[Any, Callable[[Any], bytes]]
+) -> bytes:
+    p = bytearray(struct.pack('<Hx', packet_id))
 
-    for ctx, _type in args:
-        if _type == 'str':
-            p += write_string(ctx)
-        elif _type == 'int':
-            p += write_int(ctx)
-        elif _type == 'unint':
-            p += write_unsigned_int(ctx)
-        elif _type == 'short':
-            p += write_short(ctx)
-        elif _type == 'float':
-            p += write_float(ctx)
-        elif _type == 'long':
-            p += write_long_long(ctx)
-        elif _type == 'byte':
-            p += write_byte(ctx)
-        elif _type == 'unbyte':
-            p += write_unsigned_byte(ctx)
-        elif _type == 'list_32':
-            p += write_list32(ctx)
-        else:
-            p += struct.pack(f'<{_type}', ctx)
+    for ctx, func in args:
+        p += func(ctx)
 
     p[3:3] = struct.pack('<I', len(p) - 3)
     return bytes(p)
 
 @functools.cache
-def userID(i: int) -> bytes:
+def userID(user_id: int) -> bytes:
+    if user_id > 0:
+        int_packing = write_unsigned_int
+    else:
+        int_packing = write_int
+    
     return write(
         ServerPackets.USER_ID,
-        (i, f"{'unint' if i > 0 else 'int'}")
+        (user_id, int_packing)
     )
 
 @functools.cache
 def notification(msg: str) -> bytes:
     return write(
         ServerPackets.NOTIFICATION,
-        (msg, 'str')
+        (msg, write_string)
     )
 
 @functools.cache
-def protocolVersion(i: int = 19):
+def protocolVersion(version: int = 19):
     return write(
-        ServerPackets.PROTOCOL_VERSION, (i, 'int')
+        ServerPackets.PROTOCOL_VERSION, 
+        (version, write_int)
     )
 
 @functools.cache
 def banchoPrivs(privs: int) -> bytes:
     return write(
-        ServerPackets.PRIVILEGES, (privs, 'int')
+        ServerPackets.PRIVILEGES, 
+        (privs, write_int)
     )
 
 def userPresence(
@@ -232,10 +227,14 @@ def userPresence(
 ) -> bytes:
     return write(
         ServerPackets.USER_PRESENCE,
-        (user_id, 'int'), (user_name, 'str'),
-        (utc_offset + 24, 'unbyte'), (country_code, 'unbyte'),
-        (bancho_privs | game_mode << 5, 'unbyte'), (location[0], 'float'),
-        (location[1], 'float'), (rank, 'int')
+        (user_id, write_int), 
+        (user_name, write_string),
+        (utc_offset + 24, write_unsigned_byte), 
+        (country_code, write_unsigned_byte),
+        (bancho_privs | game_mode << 5, write_unsigned_byte), 
+        (location[0], write_float),
+        (location[1], write_float), 
+        (rank, write_int)
     )
 
 def userStats(
@@ -255,35 +254,44 @@ def userStats(
 ) -> bytes:
     return write(
         ServerPackets.USER_STATS,
-        (user_id, 'int'), (action, 'byte'),
-        (info_text, 'str'), (map_md5, 'str'),
-        (mods, 'int'), (game_mode, 'unbyte'),
-        (map_id, 'int'), (ranked_score, 'long'),
-        (acc / 100.0, 'float'), (playcount, 'int'),
-        (total_score, 'long'), (rank, 'int'),
-        (pp, 'short')
+        (user_id, write_int), 
+        (action, write_byte),
+        (info_text, write_string), 
+        (map_md5, write_string),
+        (mods, write_int), 
+        (game_mode, write_unsigned_byte),
+        (map_id, write_int), 
+        (ranked_score, write_long_long),
+        (acc / 100.0, write_float), 
+        (playcount, write_int),
+        (total_score, write_long_long), 
+        (rank, write_int),
+        (pp, write_short)
     )
 
 @functools.cache
 def menuIcon(menu_icon: tuple[str, str]) -> bytes:
     return write(
         ServerPackets.MAIN_MENU_ICON,
-        ('|'.join(menu_icon), 'str')
+        ('|'.join(menu_icon), write_string)
     )
 
 def friendsList(*friends: int) -> bytes:
     return write(
         ServerPackets.FRIENDS_LIST,
-        (friends, 'list_32')
+        (friends, write_list32)
     )
 
 @functools.cache
 def channelInfoEnd() -> bytes:
-    return write(ServerPackets.CHANNEL_INFO_END)
+    return write(
+        ServerPackets.CHANNEL_INFO_END
+    )
 
 def channelJoin(channel_name: str) -> bytes:
     return write(
-        ServerPackets.CHANNEL_JOIN_SUCCESS, (channel_name, 'str')
+        ServerPackets.CHANNEL_JOIN_SUCCESS, 
+        (channel_name, write_string)
     )
 
 def channelInfo(
@@ -293,39 +301,47 @@ def channelInfo(
 ) -> bytes:
     return write(
         ServerPackets.CHANNEL_INFO,
-        (channel_name, 'str'), (channel_description, 'str'), (channel_player_count, 'short')
+        (channel_name, write_string), 
+        (channel_description, write_string), 
+        (channel_player_count, write_short)
     )
 
-def friendslist(*friends) -> bytes:
+def friendslist(friends: tuple[int]) -> bytes:
     return write(
         ServerPackets.FRIENDS_LIST,
-        (friends, 'list_32')
+        (friends, write_list32)
     )
 
 @functools.cache
-def systemRestart(ms: int = 0) -> bytes:
+def systemRestart(
+    milliseconds_to_wait: int = 0
+) -> bytes:
     return write(
-        ServerPackets.RESTART, (ms, 'int')
+        ServerPackets.RESTART, 
+        (milliseconds_to_wait, write_int)
     )
 
 @functools.cache
-def logout(uid: int) -> bytes:
+def logout(user_id: int) -> bytes:
     return write(
         ServerPackets.USER_LOGOUT,
-        (uid, 'int'), (0, 'unbyte')
+        (user_id, write_int), 
+        (0, write_unsigned_byte) # ???
     )
 
 @functools.cache
 def sendMsg(client: str, msg: str, target: str, userid: int):
     return write(
         ServerPackets.SEND_MESSAGE,
-        (client, 'str'), (msg, 'str'),
-        (target, 'str'), (userid, 'int')
+        (client, write_string), 
+        (msg, write_string),
+        (target, write_string), 
+        (userid, write_int)
     )
 
 @functools.cache
 def userSilenced(userid: int) -> bytes:
     return write(
         ServerPackets.USER_SILENCED,
-        (userid, 'int')
+        (userid, write_int)
     )
