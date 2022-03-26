@@ -122,7 +122,7 @@ class ServerPackets(enum.IntEnum):
 
 def write_uleb128(num: int) -> bytes:
     if num == 0:
-        return bytearray(b'\x00')
+        return b'\x00'
 
     ret = bytearray()
     length = 0

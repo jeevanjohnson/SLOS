@@ -33,17 +33,17 @@ async def start_up() -> None:
 
     temp_path = Path(config.avatar)
     if temp_path.exists() and temp_path.is_file():
-        config.avatar = temp_path
+        glob.avatar = temp_path
         return
     else:
         async with glob.http.get(config.avatar) as resp:
             if not resp or resp.status != 200:
-                config.avatar = b''
+                glob.avatar = b''
         
             if not (content := await resp.content.read()):
-                config.avatar = b''
+                glob.avatar = b''
             
-            config.avatar = content
+            glob.avatar = content
             return
 
 app.include_router(
