@@ -108,8 +108,8 @@ async def osuSearch(
     # update to send info for an anti-cheat 
 
     params = {
-        'u': config.bancho_username,
-        'h': config.bancho_password,
+        'u': glob.username,
+        'h': glob.password,
         'r': r,
         'q': q,
         'm': m,
