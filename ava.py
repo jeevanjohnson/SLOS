@@ -13,6 +13,12 @@ router = APIRouter()
 async def avatar(
     user_id: int
 ) -> Response:
+    if user_id != 2:
+        async with glob.http.get(
+            f'https://a.ppy.sh/{user_id}?.png'
+        ) as resp:
+            return Response(await resp.content.read())
+
     if isinstance(glob.avatar, Path):
         return Response(glob.avatar.read_bytes())
     
