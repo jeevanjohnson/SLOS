@@ -62,8 +62,8 @@ async def leaderboardHandler(
     ) as resp:
         raw_leaderboard = await resp.content.read()
     
-    if not raw_leaderboard:
-        return Response(b'error: no')
+    if len(raw_leaderboard) <= 8:
+        return Response(raw_leaderboard)
     
     leaderboard = raw_leaderboard.split(b'\n')
 
